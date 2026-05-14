@@ -273,6 +273,7 @@ export const sessionService = {
       !!latest.phoneNumber &&
       !CLOSED_STATUSES.has(latest.status) &&
       latest.status !== SmsSessionStatus.pending &&
+      hasReceivedCode &&
       !isSessionExpired &&
       latest.manualRefreshCount < env.MAX_CODE_REFRESHES;
 
@@ -357,6 +358,9 @@ export const sessionService = {
     }
     if (session.timeoutAt <= new Date()) {
       throw new AppError("当前会话已过期，无法刷新验证码", "SESSION_EXPIRED", 410);
+    }
+    if (!sessionHasReceivedCode(session)) {
+      throw new AppError("出现验证码后才能刷新验证码", "SESSION_CODE_NOT_RECEIVED", 409);
     }
     if (session.manualRefreshCount >= env.MAX_CODE_REFRESHES) {
       throw new AppError("已达到验证码刷新上限", "REFRESH_LIMIT_REACHED", 409);

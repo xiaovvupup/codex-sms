@@ -133,6 +133,9 @@ export function SessionClient({
   const canShowWaiting = session && !session.canStartReceiving;
   const canCopyCode = !!session?.verificationCode;
   const isFailedSession = !!session && FAILED_STATUSES.has(session.status);
+  const hasReceivedCode =
+    !!session &&
+    (session.status === "code_received" || !!session.verificationCode || !!session.verificationText);
 
   async function copyText(value?: string | null) {
     if (!value) return;
@@ -395,7 +398,9 @@ export function SessionClient({
                     ? <Loader2 className="size-4 animate-spin" />
                     : session.canRefreshCode
                       ? "刷新验证码"
-                      : `刷新次数已用完（${session.manualRefreshCount}/${session.maxCodeRefreshes}）`}
+                      : !hasReceivedCode
+                        ? "出现验证码后才能刷新"
+                        : `刷新次数已用完（${session.manualRefreshCount}/${session.maxCodeRefreshes}）`}
                 </Button>
                 <Button
                   className="h-12 w-full"
@@ -414,7 +419,7 @@ export function SessionClient({
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  未显示验证码时，等待 90 秒后可更换手机号，单次会话最多换号 5 次；同一手机号支持手动刷新验证码 2 次。
+                  未显示验证码时，等待 90 秒后可更换手机号；出现验证码后才可手动刷新验证码，单次会话最多刷新 2 次。
                 </p>
               </div>
             </>
