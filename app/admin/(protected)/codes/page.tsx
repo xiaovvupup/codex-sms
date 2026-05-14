@@ -232,12 +232,12 @@ export default function AdminCodesPage() {
       <CardContent className="space-y-4">
         <div className="rounded-2xl border border-border/60 bg-card/60 p-4">
           <div className="mb-3">
-            <h3 className="text-base font-semibold">HeroSMS 余额监控</h3>
+            <h3 className="text-base font-semibold">短信平台余额监控</h3>
             <p className="text-sm text-muted-foreground">点击查询实时余额；低于阈值会触发告警（支持邮件）。</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" onClick={checkSmsBalance} disabled={checkingBalance}>
-              {checkingBalance ? "查询中..." : "查询 HeroSMS 余额"}
+              {checkingBalance ? "查询中..." : "查询短信平台余额"}
             </Button>
             {balanceInfo ? (
               <div className={`rounded-full px-3 py-1 text-sm ${balanceInfo.low ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>

@@ -3,7 +3,7 @@ import { auditLogRepository } from "@/lib/repositories/audit-log-repository";
 import { activationCodeRepository } from "@/lib/repositories/activation-code-repository";
 import { adminService } from "@/lib/services/admin-service";
 import { mailService } from "@/lib/services/mail-service";
-import { heroSmsClient } from "@/lib/sms/herosms-client";
+import { smsProvider } from "@/lib/sms/provider-registry";
 
 type LowBalanceAlertInput = {
   balance: number;
@@ -13,7 +13,7 @@ type LowBalanceAlertInput = {
 
 async function sendLowBalanceAlert(input: LowBalanceAlertInput) {
   const text = [
-    "HeroSMS 余额告警",
+    "短信平台余额告警",
     "",
     `当前余额：$${input.balance.toFixed(4)}`,
     `阈值：$${input.threshold.toFixed(2)}`,
@@ -21,7 +21,7 @@ async function sendLowBalanceAlert(input: LowBalanceAlertInput) {
   ].join("\n");
 
   const sent = await mailService.send({
-    subject: `[告警] HeroSMS 余额不足（$${input.balance.toFixed(4)}）`,
+    subject: `[告警] 短信平台余额不足（$${input.balance.toFixed(4)}）`,
     text
   });
   return sent;
@@ -29,7 +29,7 @@ async function sendLowBalanceAlert(input: LowBalanceAlertInput) {
 
 export const opsService = {
   async checkSmsBalance(source: "manual" | "daily" = "manual", actorId?: string) {
-    const { balance, raw } = await heroSmsClient.getBalance();
+    const { balance, raw } = await smsProvider.getBalance();
     const low = balance < env.LOW_BALANCE_THRESHOLD_USD;
     let mailSent = false;
     if (low) {
@@ -45,8 +45,9 @@ export const opsService = {
       actorId: actorId ?? null,
       action: "CHECK_SMS_BALANCE",
       entityType: "sms_provider",
-      entityId: "herosms",
+      entityId: smsProvider.name,
       metadata: {
+        provider: smsProvider.name,
         balance,
         threshold: env.LOW_BALANCE_THRESHOLD_USD,
         low,

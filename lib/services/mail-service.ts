@@ -10,23 +10,24 @@ type MailAttachment = {
 type SendMailInput = {
   subject: string;
   text: string;
+  to?: string;
   attachments?: MailAttachment[];
 };
 
-function canSendMail() {
+function canSendMail(to?: string) {
   return (
     env.MAIL_ENABLED &&
     !!env.MAIL_SMTP_HOST &&
     !!env.MAIL_SMTP_USER &&
     !!env.MAIL_SMTP_PASS &&
     !!env.MAIL_FROM &&
-    !!env.MAIL_TO
+    !!(to ?? env.MAIL_TO)
   );
 }
 
 export const mailService = {
   async send(input: SendMailInput) {
-    if (!canSendMail()) {
+    if (!canSendMail(input.to)) {
       logger.warn("Mail skipped because SMTP config is incomplete or disabled", {
         enabled: env.MAIL_ENABLED
       });
@@ -47,7 +48,7 @@ export const mailService = {
 
       await transporter.sendMail({
         from: env.MAIL_FROM,
-        to: env.MAIL_TO,
+        to: input.to ?? env.MAIL_TO,
         subject: input.subject,
         text: input.text,
         attachments: input.attachments?.map((item) => ({

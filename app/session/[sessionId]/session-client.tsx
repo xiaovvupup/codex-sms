@@ -19,10 +19,17 @@ type SessionPayload = {
   failureReason: string | null;
   canStartReceiving: boolean;
   canChangeNumber: boolean;
+  canRefreshCode: boolean;
   numberChangeCount: number;
   maxNumberChanges: number;
+  manualRefreshCount: number;
+  maxCodeRefreshes: number;
   changeNumberWaitSeconds: number;
   changeNumberAvailableAt: string;
+  providerName: string;
+  phoneCountryLabel: string;
+  phoneCountryPrefix: string;
+  isExpired: boolean;
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -68,7 +75,7 @@ export function SessionClient({
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<"start" | "change" | "retry" | null>(null);
+  const [busyAction, setBusyAction] = useState<"start" | "change" | "refresh" | "retry" | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -200,6 +207,27 @@ export function SessionClient({
     }
   }
 
+  async function handleRefreshCode() {
+    setBusyAction("refresh");
+    setError(null);
+    setActionMessage(null);
+    try {
+      const response = await fetch(`/api/session/${sessionId}/refresh-code`, {
+        method: "POST"
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message ?? "刷新验证码失败");
+      }
+      setSession(payload.data as SessionPayload);
+      setActionMessage("已刷新验证码状态");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "网络异常");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="container-shell">
@@ -303,11 +331,13 @@ export function SessionClient({
                 {session.status === "code_received" ? "验证码已收到" : "等待短信中"}
               </h2>
               <p className="text-[15px] leading-7 text-muted-foreground">
-                复制下方号码，先点击选择国家，然后黏贴号码，如果等验证码超过2分钟，可以换一个号码。
+                复制下方号码，在目标页面选择 {session.phoneCountryLabel}（{session.phoneCountryPrefix}）后再粘贴提交。未显示验证码时，等待 90 秒后可以尝试换号。
               </p>
 
               <div className="surface-muted rounded-2xl p-4">
-                <p className="mb-1 text-xs text-muted-foreground">本次接码手机号</p>
+                <p className="mb-1 text-xs text-muted-foreground">
+                  本次接码手机号（{session.phoneCountryLabel} {session.phoneCountryPrefix}）
+                </p>
                 <p className="text-4xl font-bold tracking-wide md:text-5xl">{session.phoneNumber ?? "--"}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => copyText(session.phoneNumber)}>
@@ -347,11 +377,26 @@ export function SessionClient({
                 <p>
                   换号次数：{session.numberChangeCount} / {session.maxNumberChanges}
                 </p>
+                <p>
+                  刷新次数：{session.manualRefreshCount} / {session.maxCodeRefreshes}
+                </p>
                 {session.verificationText ? <p>短信正文：{session.verificationText}</p> : null}
                 {session.failureReason ? <p className="text-red-600">失败原因：{session.failureReason}</p> : null}
               </div>
 
               <div className="space-y-2">
+                <Button
+                  className="h-12 w-full"
+                  variant={session.canRefreshCode ? "outline" : "ghost"}
+                  onClick={handleRefreshCode}
+                  disabled={!session.canRefreshCode || busyAction !== null}
+                >
+                  {busyAction === "refresh"
+                    ? <Loader2 className="size-4 animate-spin" />
+                    : session.canRefreshCode
+                      ? "刷新验证码"
+                      : `刷新次数已用完（${session.manualRefreshCount}/${session.maxCodeRefreshes}）`}
+                </Button>
                 <Button
                   className="h-12 w-full"
                   variant={session.canChangeNumber ? "default" : "outline"}
@@ -360,6 +405,8 @@ export function SessionClient({
                 >
                   {busyAction === "change" ? (
                     <Loader2 className="size-4 animate-spin" />
+                  ) : session.status === "code_received" || session.verificationCode ? (
+                    "已收到验证码，不能换号"
                   ) : session.canChangeNumber ? (
                     "换一个号码"
                   ) : (
@@ -367,7 +414,7 @@ export function SessionClient({
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  仅在未收到验证码时支持换号；收到验证码后激活码立即失效。
+                  未显示验证码时，等待 90 秒后可更换手机号，单次会话最多换号 5 次；同一手机号支持手动刷新验证码 2 次。
                 </p>
               </div>
             </>

@@ -67,6 +67,7 @@ model SmsSession {
   lastPolledAt         DateTime?
   webhookReceivedAt    DateTime?
   pollAttempts         Int              @default(0)
+  manualRefreshCount   Int              @default(0)
   verificationCode     String?          @db.VarChar(16)
   verificationText     String?          @db.Text
   failureReason        String?          @db.VarChar(120)

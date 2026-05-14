@@ -7,6 +7,7 @@ import { activationCodeRepository } from "@/lib/repositories/activation-code-rep
 import { smsSessionRepository } from "@/lib/repositories/sms-session-repository";
 import { auditLogRepository } from "@/lib/repositories/audit-log-repository";
 import { activationCodeFileService } from "@/lib/services/activation-code-file-service";
+import { smsProvider } from "@/lib/sms/provider-registry";
 
 export const redeemService = {
   async redeemCode(rawCode: string, userIp: string) {
@@ -88,6 +89,7 @@ export const redeemService = {
         const session = await smsSessionRepository.createPending(
           {
             activationCodeId: code.id,
+            providerName: smsProvider.name,
             timeoutAt,
             userIp
           },

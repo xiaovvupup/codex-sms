@@ -6,13 +6,15 @@ type Tx = Prisma.TransactionClient;
 const ACTIVE_STATUSES: SmsSessionStatus[] = [
   SmsSessionStatus.pending,
   SmsSessionStatus.number_acquired,
-  SmsSessionStatus.waiting_sms
+  SmsSessionStatus.waiting_sms,
+  SmsSessionStatus.code_received
 ];
 
 export const smsSessionRepository = {
   async createPending(
     data: {
       activationCodeId: string;
+      providerName: string;
       timeoutAt: Date;
       userIp: string;
       metadata?: Prisma.InputJsonValue;
@@ -22,6 +24,7 @@ export const smsSessionRepository = {
     return tx.smsSession.create({
       data: {
         activationCodeId: data.activationCodeId,
+        providerName: data.providerName,
         status: SmsSessionStatus.pending,
         timeoutAt: data.timeoutAt,
         userIp: data.userIp,
@@ -57,6 +60,7 @@ export const smsSessionRepository = {
         startedAt: input.isNumberChange ? undefined : now,
         numberAcquiredAt: now,
         numberChangeCount: input.isNumberChange ? { increment: 1 } : undefined,
+        manualRefreshCount: 0,
         failureReason: null,
         verificationCode: null,
         verificationText: null,
@@ -115,7 +119,6 @@ export const smsSessionRepository = {
         status: SmsSessionStatus.code_received,
         verificationCode,
         verificationText: text,
-        completedAt: new Date(),
         metadata: raw as Prisma.InputJsonValue
       }
     });
@@ -149,6 +152,18 @@ export const smsSessionRepository = {
     return prisma.smsSession.update({
       where: { id: sessionId },
       data: {
+        lastPolledAt: new Date(),
+        pollAttempts: { increment: 1 }
+      }
+    });
+  },
+
+  async incrementManualRefreshCount(sessionId: string, tx?: Tx) {
+    const db = tx ?? prisma;
+    return db.smsSession.update({
+      where: { id: sessionId },
+      data: {
+        manualRefreshCount: { increment: 1 },
         lastPolledAt: new Date(),
         pollAttempts: { increment: 1 }
       }

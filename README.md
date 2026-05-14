@@ -5,13 +5,13 @@
 ## 功能概览
 
 - 用户输入激活码，服务端校验并防并发重复核销
-- 服务端向 SMS（SMS-Activate 兼容）申请号码
+- 服务端向短信供应商申请号码
 - 前端展示手机号并每 5 秒轮询会话状态
 - 收到短信后自动提取 4-8 位验证码并展示
 - 激活码一次性使用
 - 管理员后台（登录、激活码管理、会话管理）
 - 管理员可单码检查、失效、恢复可用状态
-- 管理员可一键查询 HeroSMS 余额，低余额可邮件告警
+- 管理员可一键查询短信平台余额，低余额可邮件告警
 - 每日自动巡检：unused 低于阈值自动补码并邮件发送 txt
 - 支持 webhook 扩展接收短信
 - 统一 JSON 响应、日志、限流、超时处理、审计日志
@@ -126,11 +126,14 @@ lib/
   db/prisma.ts
   repositories/
   services/
-  sms/herosms-client.ts
+  sms/5sim-client.ts
+  sms/provider.ts
+  sms/provider-registry.ts
   validators/schemas.ts
 prisma/
   schema.prisma
   seed.ts
+scripts/sms-smoke.ts
 scripts/init.sh
 Dockerfile
 ```
@@ -201,11 +204,66 @@ Dockerfile
 
 ## 接入 SMS 说明
 
-- `SMS_API_BASE_URL` 默认 `https://hero-sms.com/stubs/handler_api.php`
-- 号码申请：`action=getNumberV2`
-- 状态查询：`action=getStatusV2`
-- 完成会话：`action=setStatus&id=...&status=6`
-- 取消会话：`action=setStatus&id=...&status=8`
+- 当前默认国家：`vietnam`（越南），号码前缀：`+84`
+- `SMS_API_BASE_URL` 默认 `https://5sim.net/v1`
+- 号码申请：`GET /user/buy/activation/:country/:operator/:product`
+- 状态查询：`GET /user/check/:id`
+- 完成会话：`GET /user/finish/:id`
+- 取消会话：`GET /user/cancel/:id`
+- 余额查询：`GET /user/profile`
+
+`.env.example` 中与接码相关的关键变量：
+
+- `SMS_API_KEY`：5sim token
+- `SMS_PRODUCT_CODE`：业务产品标识，默认 `claudeai`
+- `SMS_COUNTRY_NAME=vietnam`
+- `SMS_COUNTRY_LABEL=越南`
+- `SMS_COUNTRY_PREFIX=+84`
+- `SMS_OPERATOR=any`
+- `SMS_MAX_PRICE`：可选，只有在 `SMS_OPERATOR=any` 时更有意义
+
+### 冒烟测试
+
+先检查余额、国家前缀和当前产品库存：
+
+```bash
+npm run sms:smoke
+```
+
+如果还没填真实 token，这个脚本仍然会返回公开的国家前缀和库存信息，只是不会继续查询余额或真实买号。
+
+如果想实际买一个号码再立刻取消做联调测试：
+
+```bash
+SMS_SMOKE_BUY=1 npm run sms:smoke
+```
+
+这会输出：
+
+- 当前余额
+- 当前国家公开前缀列表
+- 当前产品在越南的库存和价格
+- 可选的一次真实买号结果
+
+### 页面联调流程
+
+1. `cp .env.example .env`
+2. 在 `.env` 填入真实的 `SMS_API_KEY`
+3. 启动数据库：`npm run db:up`
+4. 初始化：`npm run init`
+5. 启动开发环境：`npm run dev`
+6. 打开 `http://localhost:3000`
+7. 输入一个可用激活码
+8. 点击“开始接收验证码”
+9. 页面拿到手机号后，在目标站点选择越南区号 `+84` 并提交号码
+10. 回到会话页等待验证码，必要时使用“换号”
+
+### 关于当前默认产品
+
+- 当前默认 `SMS_PRODUCT_CODE=claudeai`
+- 我在 2026-05-05 用 5sim 公开价格接口核对过 `vietnam/claudeai`，返回库存 `count: 0`
+- 这意味着如果你的目标仍然是 `claudeai`，越南 `+84` 号码在当时没有现货；平台代码可以运行，但买号可能失败
+- 如果你只是先验证整条链路是否通，可以暂时把 `SMS_PRODUCT_CODE` 改成一个在越南有库存的产品，等流程跑通后再切回目标产品
 
 ## 生产建议
 
